@@ -1,0 +1,133 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+model User {
+  id               String   @id @default(cuid())
+  username         String   @unique
+  email            String   @unique
+  passwordHash     String
+  avatarUrl        String?
+  credibilityScore Float    @default(50.0)
+  totalReports     Int      @default(0)
+  accurateReports  Int      @default(0)
+  expoPushToken    String?
+  notifyRadius     Float    @default(804.67)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  reports       Report[]
+  votes         Vote[]
+  helpOffers    HelpOffer[]
+  notifications Notification[]
+  refreshTokens RefreshToken[]
+
+  @@index([credibilityScore])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Report {
+  id          String         @id @default(cuid())
+  authorId    String
+  category    ReportCategory
+  title       String         @db.VarChar(120)
+  description String         @db.VarChar(1000)
+  photoUrl    String?
+  latitude    Float
+  longitude   Float
+  address     String?
+  upvotes     Int            @default(0)
+  downvotes   Int            @default(0)
+  netScore    Int            @default(0)
+  status      ReportStatus   @default(ACTIVE)
+  archivedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  author     User        @relation(fields: [authorId], references: [id])
+  votes      Vote[]
+  helpOffers HelpOffer[]
+
+  @@index([status, createdAt])
+  @@index([category])
+  @@index([authorId])
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  reportId  String
+  userId    String
+  value     Int
+  createdAt DateTime @default(now())
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, userId])
+  @@index([reportId])
+}
+
+model HelpOffer {
+  id        String   @id @default(cuid())
+  reportId  String
+  userId    String
+  message   String?  @db.VarChar(300)
+  createdAt DateTime @default(now())
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, userId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  reportId  String?
+  type      NotificationType
+  title     String
+  body      String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+enum ReportCategory {
+  SAFETY
+  INFRASTRUCTURE
+  ANIMALS
+  COMMUNITY
+  POSITIVE
+}
+
+enum ReportStatus {
+  ACTIVE
+  ARCHIVED
+  REMOVED
+}
+
+enum NotificationType {
+  NEW_NEARBY_REPORT
+  VOTE_ON_MY_REPORT
+  HELP_OFFERED
+  REPORT_ARCHIVED
+}

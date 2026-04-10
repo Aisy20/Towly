@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Townly",
+    "slug": "townly",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#4CAF7D"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.townly.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#4CAF7D"
+      },
+      "package": "com.townly.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+        }
+      }
+    }
+  }
+}
