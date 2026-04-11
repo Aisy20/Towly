@@ -31,6 +31,7 @@ export interface Report {
   archivedAt: string | null;
   userVote?: 1 | -1 | null;
   helpOffersCount: number;
+  evidenceCount: number;
 }
 
 export interface Notification {
@@ -48,8 +49,18 @@ export interface HelpOffer {
   id: string;
   reportId: string;
   userId: string;
-  user: Pick<User, 'id' | 'username' | 'avatarUrl'>;
-  message: string | null;
+  user: Pick<User, 'id' | 'username' | 'avatarUrl' | 'credibilityScore'>;
+  message: string;
+  createdAt: string;
+}
+
+export interface Evidence {
+  id: string;
+  reportId: string;
+  userId: string;
+  user: Pick<User, 'id' | 'username' | 'avatarUrl' | 'credibilityScore'>;
+  caption: string | null;
+  photoUrl: string;
   createdAt: string;
 }
 
@@ -60,4 +71,6 @@ export type WsClientMessage =
 export type WsServerMessage =
   | { type: 'REPORT_CREATED'; payload: Report }
   | { type: 'REPORT_VOTE_UPDATED'; payload: { reportId: string; netScore: number; upvotes: number; downvotes: number } }
-  | { type: 'REPORT_ARCHIVED'; payload: { reportId: string } };
+  | { type: 'REPORT_ARCHIVED'; payload: { reportId: string } }
+  | { type: 'HELP_OFFERED'; payload: HelpOffer }
+  | { type: 'EVIDENCE_ADDED'; payload: Evidence };

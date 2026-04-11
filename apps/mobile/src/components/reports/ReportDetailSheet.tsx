@@ -8,10 +8,10 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
 import { Report, CATEGORY_META } from '@townly/shared';
 import { VoteButtons } from './VoteButtons';
-import { HelpButton } from './HelpButton';
 import { ArchiveCountdown } from './ArchiveCountdown';
 
 interface Props {
@@ -52,6 +52,23 @@ export function ReportDetailSheet({ report, onClose, onViewFull }: Props) {
           {report.address && <Text style={styles.address}>{report.address}</Text>}
         </View>
 
+        {(report.evidenceCount > 0 || report.helpOffersCount > 0) && (
+          <View style={styles.indicators}>
+            {report.evidenceCount > 0 && (
+              <View style={styles.indicator}>
+                <Ionicons name="camera-outline" size={13} color="#8b5cf6" />
+                <Text style={styles.indicatorText}>{report.evidenceCount} evidence</Text>
+              </View>
+            )}
+            {report.helpOffersCount > 0 && (
+              <View style={styles.indicator}>
+                <Ionicons name="hand-left-outline" size={13} color="#3b82f6" />
+                <Text style={styles.indicatorText}>{report.helpOffersCount} helping</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.actions}>
           <VoteButtons
             reportId={report.id}
@@ -59,7 +76,6 @@ export function ReportDetailSheet({ report, onClose, onViewFull }: Props) {
             downvotes={report.downvotes}
             userVote={report.userVote}
           />
-          <HelpButton reportId={report.id} helpOffersCount={report.helpOffersCount} />
           <TouchableOpacity style={styles.viewFull} onPress={onViewFull}>
             <Text style={styles.viewFullText}>View Full</Text>
           </TouchableOpacity>
@@ -96,6 +112,9 @@ const styles = StyleSheet.create({
   meta: { gap: 2 },
   metaText: { fontSize: 12, color: '#94a3b8' },
   address: { fontSize: 12, color: '#64748b' },
+  indicators: { flexDirection: 'row', gap: 12 },
+  indicator: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  indicatorText: { fontSize: 12, color: '#64748b', fontWeight: '500' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   viewFull: {
     marginLeft: 'auto',

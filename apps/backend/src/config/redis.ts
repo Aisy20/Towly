@@ -8,4 +8,6 @@ export const REDIS_CHANNELS = {
   REPORTS_NEW: 'reports:new',
   REPORTS_VOTED: 'reports:voted',
   REPORTS_ARCHIVED: 'reports:archived',
+  HELP_OFFERED: 'reports:help',
+  EVIDENCE_ADDED: 'reports:evidence',
 } as const;

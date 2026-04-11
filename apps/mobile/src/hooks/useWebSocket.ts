@@ -76,6 +76,12 @@ export function useWebSocket(lat: number | null, lng: number | null, radiusMeter
           return { ...old, reports: old.reports.filter((r) => r.id !== msg.payload.reportId) };
         },
       );
+    } else if (msg.type === 'HELP_OFFERED') {
+      qc.invalidateQueries({ queryKey: reportKeys.helpThread(msg.payload.reportId) });
+      qc.invalidateQueries({ queryKey: reportKeys.detail(msg.payload.reportId) });
+    } else if (msg.type === 'EVIDENCE_ADDED') {
+      qc.invalidateQueries({ queryKey: reportKeys.evidence(msg.payload.reportId) });
+      qc.invalidateQueries({ queryKey: reportKeys.detail(msg.payload.reportId) });
     }
   }
 

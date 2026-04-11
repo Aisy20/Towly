@@ -1,7 +1,7 @@
 import { redisSub, REDIS_CHANNELS } from '../../config/redis';
 import { connections, send } from './ws.handler';
 import { distanceMeters } from '../../lib/haversine';
-import { Report, WsServerMessage } from '@townly/shared';
+import { Report, HelpOffer, Evidence, WsServerMessage } from '@townly/shared';
 
 /**
  * Subscribes to Redis pub/sub channels and fans out to relevant WebSocket connections.
@@ -14,6 +14,8 @@ export async function startBroadcaster(): Promise<void> {
     REDIS_CHANNELS.REPORTS_NEW,
     REDIS_CHANNELS.REPORTS_VOTED,
     REDIS_CHANNELS.REPORTS_ARCHIVED,
+    REDIS_CHANNELS.HELP_OFFERED,
+    REDIS_CHANNELS.EVIDENCE_ADDED,
   );
 
   redisSub.on('message', (channel: string, message: string) => {
@@ -28,6 +30,12 @@ export async function startBroadcaster(): Promise<void> {
           break;
         case REDIS_CHANNELS.REPORTS_ARCHIVED:
           broadcastArchived(payload);
+          break;
+        case REDIS_CHANNELS.HELP_OFFERED:
+          broadcastHelpOffered(payload as HelpOffer);
+          break;
+        case REDIS_CHANNELS.EVIDENCE_ADDED:
+          broadcastEvidenceAdded(payload as Evidence);
           break;
       }
     } catch (err) {
@@ -62,6 +70,20 @@ function broadcastVoteUpdate(payload: {
 
 function broadcastArchived(payload: { reportId: string }): void {
   const msg: WsServerMessage = { type: 'REPORT_ARCHIVED', payload };
+  for (const [id] of connections) {
+    send(id, msg);
+  }
+}
+
+function broadcastHelpOffered(payload: HelpOffer): void {
+  const msg: WsServerMessage = { type: 'HELP_OFFERED', payload };
+  for (const [id] of connections) {
+    send(id, msg);
+  }
+}
+
+function broadcastEvidenceAdded(payload: Evidence): void {
+  const msg: WsServerMessage = { type: 'EVIDENCE_ADDED', payload };
   for (const [id] of connections) {
     send(id, msg);
   }

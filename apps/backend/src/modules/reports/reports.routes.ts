@@ -86,7 +86,7 @@ export async function reportRoutes(app: FastifyInstance) {
       },
       include: {
         author: { select: { id: true, username: true, avatarUrl: true, credibilityScore: true } },
-        _count: { select: { helpOffers: true } },
+        _count: { select: { helpOffers: true, evidence: true } },
       },
     });
 
@@ -94,6 +94,7 @@ export async function reportRoutes(app: FastifyInstance) {
     await redis.publish(REDIS_CHANNELS.REPORTS_NEW, JSON.stringify({
       ...report,
       helpOffersCount: report._count.helpOffers,
+      evidenceCount: report._count.evidence,
       _count: undefined,
     }));
 
@@ -129,7 +130,7 @@ export async function reportRoutes(app: FastifyInstance) {
       include: {
         author: { select: { id: true, username: true, avatarUrl: true, credibilityScore: true } },
         votes: requestingUserId ? { where: { userId: requestingUserId } } : false,
-        _count: { select: { helpOffers: true } },
+        _count: { select: { helpOffers: true, evidence: true } },
       },
     });
 
@@ -139,6 +140,7 @@ export async function reportRoutes(app: FastifyInstance) {
       ...report,
       userVote: requestingUserId && report.votes?.length ? report.votes[0].value : null,
       helpOffersCount: report._count.helpOffers,
+      evidenceCount: report._count.evidence,
       votes: undefined,
       _count: undefined,
     });

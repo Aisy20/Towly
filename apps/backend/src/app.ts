@@ -11,6 +11,8 @@ import websocketPlugin from './plugins/websocket.plugin';
 import { authRoutes } from './modules/auth/auth.routes';
 import { reportRoutes } from './modules/reports/reports.routes';
 import { votesRoutes } from './modules/votes/votes.routes';
+import { helpRoutes } from './modules/help/help.routes';
+import { evidenceRoutes } from './modules/evidence/evidence.routes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -32,6 +34,8 @@ export async function buildApp() {
   await app.register(reportRoutes, { prefix: '/api/v1/reports' });
   await app.register(fastifyPlugin(async (instance) => {
     instance.register(votesRoutes, { prefix: '/api/v1/reports' });
+    instance.register(helpRoutes, { prefix: '/api/v1/reports' });
+    instance.register(evidenceRoutes, { prefix: '/api/v1/reports' });
   }));
 
   app.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
