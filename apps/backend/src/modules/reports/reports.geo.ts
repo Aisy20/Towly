@@ -71,7 +71,7 @@ export async function getReportsNearby(params: GetReportsNearbyParams) {
       votes: requestingUserId
         ? { where: { userId: requestingUserId }, select: { value: true } }
         : false,
-      _count: { select: { helpOffers: true } },
+      _count: { select: { helpOffers: true, evidence: true } },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -81,6 +81,7 @@ export async function getReportsNearby(params: GetReportsNearbyParams) {
     distanceMeters: distanceMap.get(r.id) ?? 0,
     userVote: requestingUserId && r.votes?.length ? r.votes[0].value : null,
     helpOffersCount: r._count.helpOffers,
+    evidenceCount: r._count.evidence,
     votes: undefined,
     _count: undefined,
   }));

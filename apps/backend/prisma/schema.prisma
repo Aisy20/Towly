@@ -26,6 +26,7 @@ model User {
   reports       Report[]
   votes         Vote[]
   helpOffers    HelpOffer[]
+  evidence      Evidence[]
   notifications Notification[]
   refreshTokens RefreshToken[]
 
@@ -62,6 +63,7 @@ model Report {
   author     User        @relation(fields: [authorId], references: [id])
   votes      Vote[]
   helpOffers HelpOffer[]
+  evidence   Evidence[]
 
   @@index([status, createdAt])
   @@index([category])
@@ -86,13 +88,27 @@ model HelpOffer {
   id        String   @id @default(cuid())
   reportId  String
   userId    String
-  message   String?  @db.VarChar(300)
+  message   String   @db.VarChar(300)
   createdAt DateTime @default(now())
 
   report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([reportId, userId])
+  @@index([reportId, createdAt])
+}
+
+model Evidence {
+  id        String   @id @default(cuid())
+  reportId  String
+  userId    String
+  caption   String?  @db.VarChar(300)
+  photoUrl  String
+  createdAt DateTime @default(now())
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([reportId, createdAt])
 }
 
 model Notification {

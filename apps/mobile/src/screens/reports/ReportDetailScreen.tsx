@@ -7,8 +7,9 @@ import { formatDistanceToNow } from 'date-fns';
 import { CATEGORY_META, CREDIBILITY_TIERS } from '@townly/shared';
 import { useReport } from '../../api/reports';
 import { VoteButtons } from '../../components/reports/VoteButtons';
-import { HelpButton } from '../../components/reports/HelpButton';
 import { ArchiveCountdown } from '../../components/reports/ArchiveCountdown';
+import { HelpThread } from '../../components/reports/HelpThread';
+import { EvidenceSection } from '../../components/reports/EvidenceSection';
 
 function getCredibilityTier(score: number) {
   return CREDIBILITY_TIERS.find((t) => score >= t.min) ?? CREDIBILITY_TIERS[CREDIBILITY_TIERS.length - 1];
@@ -70,8 +71,19 @@ export function ReportDetailScreen() {
           downvotes={report.downvotes}
           userVote={report.userVote}
         />
-        <HelpButton reportId={report.id} helpOffersCount={report.helpOffersCount} />
       </View>
+
+      {report.evidenceCount > 0 && (
+        <View style={styles.trustBanner}>
+          <Text style={styles.trustText}>
+            {report.evidenceCount} corroborating photo{report.evidenceCount !== 1 ? 's' : ''} · {report.upvotes} upvote{report.upvotes !== 1 ? 's' : ''}
+          </Text>
+        </View>
+      )}
+
+      <EvidenceSection reportId={report.id} evidenceCount={report.evidenceCount} />
+
+      <HelpThread reportId={report.id} helpOffersCount={report.helpOffersCount} />
     </ScrollView>
   );
 }
@@ -95,4 +107,12 @@ const styles = StyleSheet.create({
   authorTier: { fontSize: 11, fontWeight: '500' },
   time: { marginLeft: 'auto', fontSize: 12, color: '#94a3b8' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  trustBanner: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  trustText: { fontSize: 13, color: '#16a34a', fontWeight: '600', textAlign: 'center' },
 });

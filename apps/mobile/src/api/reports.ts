@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { Report, ReportCategory } from '@townly/shared';
+import { Report, ReportCategory, HelpOffer, Evidence } from '@townly/shared';
 import { apiClient } from './client';
 
 export const reportKeys = {
@@ -8,6 +8,8 @@ export const reportKeys = {
     [...reportKeys.all, 'nearby', lat, lng, radius, cats] as const,
   detail: (id: string) => [...reportKeys.all, 'detail', id] as const,
   mine: () => [...reportKeys.all, 'mine'] as const,
+  helpThread: (reportId: string) => [...reportKeys.all, 'help', reportId] as const,
+  evidence: (reportId: string) => [...reportKeys.all, 'evidence', reportId] as const,
 };
 
 interface NearbyReportsResponse {
@@ -106,9 +108,51 @@ export function useVoteReport() {
 }
 
 export function useHelpReport() {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ reportId, message }: { reportId: string; message?: string }) => {
-      await apiClient.post(`/reports/${reportId}/help`, { message });
+    mutationFn: async ({ reportId, message }: { reportId: string; message: string }) => {
+      const { data } = await apiClient.post<HelpOffer>(`/reports/${reportId}/help`, { message });
+      return data;
+    },
+    onSuccess: (_data, { reportId }) => {
+      qc.invalidateQueries({ queryKey: reportKeys.helpThread(reportId) });
+      qc.invalidateQueries({ queryKey: reportKeys.detail(reportId) });
+    },
+  });
+}
+
+export function useHelpThread(reportId: string) {
+  return useQuery({
+    queryKey: reportKeys.helpThread(reportId),
+    queryFn: async () => {
+      const { data } = await apiClient.get<HelpOffer[]>(`/reports/${reportId}/help`);
+      return data;
+    },
+  });
+}
+
+export function useEvidence(reportId: string) {
+  return useQuery({
+    queryKey: reportKeys.evidence(reportId),
+    queryFn: async () => {
+      const { data } = await apiClient.get<Evidence[]>(`/reports/${reportId}/evidence`);
+      return data;
+    },
+  });
+}
+
+export function useAddEvidence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ reportId, formData }: { reportId: string; formData: FormData }) => {
+      const { data } = await apiClient.post<Evidence>(`/reports/${reportId}/evidence`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return data;
+    },
+    onSuccess: (_data, { reportId }) => {
+      qc.invalidateQueries({ queryKey: reportKeys.evidence(reportId) });
+      qc.invalidateQueries({ queryKey: reportKeys.detail(reportId) });
     },
   });
 }
