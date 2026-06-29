@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "platforms": ["ios", "android", "web"],
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/brand/townly-icon-1024.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splash.png",
@@ -24,8 +24,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/brand/townly-icon-1024.png",
+        "backgroundColor": "#3C4D59"
       },
       "package": "com.townly.app",
       "permissions": [

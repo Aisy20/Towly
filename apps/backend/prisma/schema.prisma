@@ -132,7 +132,7 @@ enum ReportCategory {
   INFRASTRUCTURE
   ANIMALS
   COMMUNITY
-  POSITIVE
+  HELP
 }
 
 enum ReportStatus {

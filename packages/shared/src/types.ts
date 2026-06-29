@@ -1,4 +1,4 @@
-export type ReportCategory = 'SAFETY' | 'INFRASTRUCTURE' | 'ANIMALS' | 'COMMUNITY' | 'POSITIVE';
+export type ReportCategory = 'SAFETY' | 'INFRASTRUCTURE' | 'ANIMALS' | 'COMMUNITY' | 'HELP';
 export type ReportStatus = 'ACTIVE' | 'ARCHIVED' | 'REMOVED';
 export type NotificationType = 'NEW_NEARBY_REPORT' | 'VOTE_ON_MY_REPORT' | 'HELP_OFFERED' | 'REPORT_ARCHIVED';
 

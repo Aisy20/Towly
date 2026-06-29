@@ -14,7 +14,7 @@ export function SettingsScreen() {
   const { radiusMeters, setRadius } = useMapStore();
   const { clearAuth } = useAuthStore();
   const [notifyCategories, setNotifyCategories] = useState<Set<ReportCategory>>(
-    new Set(['SAFETY', 'INFRASTRUCTURE', 'ANIMALS', 'COMMUNITY', 'POSITIVE'])
+    new Set(['SAFETY', 'INFRASTRUCTURE', 'ANIMALS', 'COMMUNITY', 'HELP'])
   );
 
   const toggleCategory = (cat: ReportCategory) => {

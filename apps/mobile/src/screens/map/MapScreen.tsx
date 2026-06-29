@@ -1,232 +1,261 @@
-import React, { useRef, useState, useCallback } from 'react';
-import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  Text,
-  ScrollView,
-  ActivityIndicator,
-} from 'react-native';
-import MapView, { Circle } from 'react-native-maps';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useCallback, useRef } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import MapView, { Circle, Marker, type Region } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
-import { Report, ReportCategory, CATEGORY_META, RADIUS_OPTIONS } from '@townly/shared';
+import type { Report } from '@townly/shared';
+import {
+  IconButton,
+  MapPin,
+  OfflineBanner,
+  PermissionState,
+  RadiusStepper,
+  ReportPreviewCard,
+  Text,
+} from '@/components/ui';
+import { colors, palette, spacing, layout, radii, shadows } from '@/theme';
 import { useMapStore } from '../../store/mapStore';
-import { useLocation } from '../../hooks/useLocation';
-import { useWebSocket } from '../../hooks/useWebSocket';
-import { useNearbyReports } from '../../api/reports';
-import { ReportPin } from '../../components/map/ReportPin';
-import { ReportDetailSheet } from '../../components/reports/ReportDetailSheet';
+import { useAuthStore } from '../../store/authStore';
+import { fuzzCoordinate, formatDistance } from '../../lib/geo';
+import { withAlpha } from '../../lib/color';
+import { HomeHeader } from '../home/HomeHeader';
+import { HomeChrome } from '../home/HomeChrome';
+import { NearbyList } from '../home/NearbyList';
+import { useHomeView } from '../home/useHomeView';
+import {
+  isLive,
+  isConfirmed,
+  reportStatus,
+  pulseSummary,
+  lastUpdatedLabel,
+  distanceMeters,
+} from '../home/home.data';
+import { townlyMapStyle } from '../home/mapStyle';
+
+const FALLBACK_REGION: Region = {
+  latitude: 39.9726,
+  longitude: -75.13,
+  latitudeDelta: 0.02,
+  longitudeDelta: 0.02,
+};
 
 export function MapScreen() {
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const mapRef = useRef<MapView>(null);
-  const { location, error: locationError } = useLocation();
-  const { radiusMeters, activeCategories, setRadius, toggleCategory } = useMapStore();
-  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
-  const [showRadiusSlider, setShowRadiusSlider] = useState(false);
 
-  const lat = location?.lat ?? null;
-  const lng = location?.lng ?? null;
+  const radiusMeters = useMapStore((s) => s.radiusMeters);
+  const listMode = useMapStore((s) => s.listMode);
+  const setListMode = useMapStore((s) => s.setListMode);
+  const selectedReportId = useMapStore((s) => s.selectedReportId);
+  const setSelectedReport = useMapStore((s) => s.setSelectedReport);
+  const stepRadius = useMapStore((s) => s.stepRadius);
+  const canStepRadius = useMapStore((s) => s.canStepRadius);
 
-  // Live updates via WebSocket
-  useWebSocket(lat, lng, radiusMeters);
+  const user = useAuthStore((s) => s.user);
+  const initial = (user?.username?.[0] ?? 'Y').toUpperCase();
 
-  const { data, isLoading } = useNearbyReports(lat, lng, radiusMeters, activeCategories ?? undefined);
-  const reports = data?.pages.flatMap((p) => p.reports) ?? [];
+  const view = useHomeView();
+  const { center, visible, pulse, selectedReport, isError, isWaitingForLocation } = view;
 
-  const handlePinPress = useCallback((report: Report) => {
-    setSelectedReport(report);
-  }, []);
+  const openDetail = useCallback(
+    (report: Report) => navigation.navigate('ReportDetail', { reportId: report.id }),
+    [navigation],
+  );
 
-  const centerOnUser = useCallback(() => {
-    if (!location) return;
-    mapRef.current?.animateToRegion({
-      latitude: location.lat,
-      longitude: location.lng,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    }, 400);
-  }, [location]);
+  const recenter = useCallback(() => {
+    if (!center) return;
+    mapRef.current?.animateToRegion(
+      { latitude: center.lat, longitude: center.lng, latitudeDelta: 0.02, longitudeDelta: 0.02 },
+      350,
+    );
+  }, [center]);
+
+  const region: Region = center
+    ? { latitude: center.lat, longitude: center.lng, latitudeDelta: 0.02, longitudeDelta: 0.02 }
+    : FALLBACK_REGION;
+
+  const updatedLabel = lastUpdatedLabel(view.windowReports);
+  const summary = pulseSummary(pulse);
 
   return (
     <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        showsUserLocation
-        showsMyLocationButton={false}
-        initialRegion={
-          location
-            ? { latitude: location.lat, longitude: location.lng, latitudeDelta: 0.01, longitudeDelta: 0.01 }
-            : { latitude: 37.7749, longitude: -122.4194, latitudeDelta: 0.05, longitudeDelta: 0.05 }
-        }
-      >
-        {/* Radius circle */}
-        {location && (
-          <Circle
-            center={{ latitude: location.lat, longitude: location.lng }}
-            radius={radiusMeters}
-            strokeColor="rgba(34,197,94,0.4)"
-            fillColor="rgba(34,197,94,0.06)"
+      <HomeHeader
+        initial={initial}
+        onSearch={() => navigation.navigate('SearchList')}
+        onAvatar={() => navigation.navigate('You')}
+      />
+
+      <HomeChrome
+        pulse={pulse}
+        summary={summary}
+        updatedLabel={updatedLabel}
+        onLocationPress={() => navigation.navigate('SearchList')}
+      />
+
+      <View style={styles.viewport}>
+        {listMode ? (
+          <NearbyList reports={visible} center={center} onSelectReport={openDetail} />
+        ) : isWaitingForLocation ? (
+          <PermissionState
+            icon="location-outline"
+            title="Location is off"
+            message="Townly uses your location to show what's happening nearby. Your exact position is never shown to others."
+            actionLabel="Enable location"
+            onAction={recenter}
           />
+        ) : (
+          <>
+            <MapView
+              ref={mapRef}
+              style={StyleSheet.absoluteFill}
+              initialRegion={region}
+              customMapStyle={townlyMapStyle}
+              showsUserLocation
+              showsMyLocationButton={false}
+              showsPointsOfInterest={false}
+              toolbarEnabled={false}
+              onPress={() => setSelectedReport(null)}
+            >
+              {center ? (
+                <Circle
+                  center={{ latitude: center.lat, longitude: center.lng }}
+                  radius={radiusMeters}
+                  strokeColor={withAlpha(palette.slate, 0.4)}
+                  fillColor={withAlpha(palette.slate, 0.07)}
+                  strokeWidth={1.5}
+                />
+              ) : null}
+
+              {visible.map((report) => {
+                const c = fuzzCoordinate({ lat: report.latitude, lng: report.longitude }, report.id);
+                const selected = report.id === selectedReportId;
+                return (
+                  <Marker
+                    key={report.id}
+                    coordinate={{ latitude: c.lat, longitude: c.lng }}
+                    anchor={{ x: 0.5, y: 1 }}
+                    onPress={() => setSelectedReport(report.id)}
+                    tracksViewChanges={selected || isLive(report)}
+                  >
+                    <MapPin
+                      category={report.category}
+                      live={isLive(report)}
+                      selected={selected}
+                    />
+                  </Marker>
+                );
+              })}
+            </MapView>
+
+            {isError ? <OfflineBanner style={styles.offline} /> : null}
+
+            {/* Map controls */}
+            <View style={styles.topControls} pointerEvents="box-none">
+              <IconButton
+                icon={listMode ? 'map' : 'list'}
+                accessibilityLabel="Show nearby list"
+                onPress={() => setListMode(true)}
+              />
+              <IconButton icon="locate" accessibilityLabel="Recenter map" onPress={recenter} />
+            </View>
+
+            {/* Bottom: floating preview + radius stepper */}
+            <View style={styles.bottomDock} pointerEvents="box-none">
+              {selectedReport ? (
+                <ReportPreviewCard
+                  category={selectedReport.category}
+                  title={selectedReport.title}
+                  distanceLabel={distanceLabel(selectedReport, center)}
+                  timeLabel={isLive(selectedReport) ? 'Just now' : undefined}
+                  confirmedCount={isConfirmed(selectedReport) ? selectedReport.upvotes : undefined}
+                  status={reportStatus(selectedReport)}
+                  onPress={() => openDetail(selectedReport)}
+                  style={styles.preview}
+                />
+              ) : null}
+              <View style={styles.stepperRow}>
+                <RadiusStepper
+                  valueLabel={`${(radiusMeters / 1000).toFixed(1)} km`}
+                  canDecrement={canStepRadius(-1)}
+                  canIncrement={canStepRadius(1)}
+                  onDecrement={() => stepRadius(-1)}
+                  onIncrement={() => stepRadius(1)}
+                  style={styles.stepper}
+                />
+              </View>
+            </View>
+          </>
         )}
 
-        {/* Report pins */}
-        {reports.map((report) => (
-          <ReportPin
-            key={report.id}
-            report={report}
-            onPress={handlePinPress}
-          />
-        ))}
-      </MapView>
+        {listMode ? (
+          <View style={styles.listToggleDock} pointerEvents="box-none">
+            <IconButton
+              icon="map"
+              accessibilityLabel="Show map"
+              variant="brand"
+              onPress={() => setListMode(false)}
+              style={styles.listToggleBtn}
+            />
+          </View>
+        ) : null}
 
-      {/* Top: Category filter chips */}
-      <View style={[styles.filterBar, { top: insets.top + 8 }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {(Object.keys(CATEGORY_META) as ReportCategory[]).map((cat) => {
-            const meta = CATEGORY_META[cat];
-            const active = activeCategories === null || activeCategories.includes(cat);
-            return (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.chip, { borderColor: meta.color, backgroundColor: active ? meta.color : '#fff' }]}
-                onPress={() => toggleCategory(cat)}
-              >
-                <Text style={[styles.chipText, { color: active ? '#fff' : meta.color }]}>
-                  {meta.emoji} {meta.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {view.isLoading ? (
+          <View style={styles.loading} pointerEvents="none">
+            <ActivityIndicator color={colors.brand} />
+            <Text variant="bodyMuted" style={styles.loadingText}>
+              Loading nearby reports…
+            </Text>
+          </View>
+        ) : null}
       </View>
-
-      {/* Right: Controls */}
-      <View style={[styles.controls, { bottom: insets.bottom + 100 }]}>
-        {isLoading && <ActivityIndicator color="#22c55e" style={styles.controlBtn} />}
-
-        <TouchableOpacity style={styles.controlBtn} onPress={centerOnUser}>
-          <Ionicons name="locate" size={22} color="#334155" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.controlBtn}
-          onPress={() => setShowRadiusSlider((v) => !v)}
-        >
-          <Ionicons name="radio-outline" size={22} color="#334155" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Radius selector */}
-      {showRadiusSlider && (
-        <View style={[styles.radiusPanel, { bottom: insets.bottom + 160 }]}>
-          {RADIUS_OPTIONS.map((opt) => (
-            <TouchableOpacity
-              key={opt.meters}
-              style={[styles.radiusOption, radiusMeters === opt.meters && styles.radiusOptionActive]}
-              onPress={() => { setRadius(opt.meters); setShowRadiusSlider(false); }}
-            >
-              <Text style={[styles.radiusText, radiusMeters === opt.meters && styles.radiusTextActive]}>
-                {opt.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* FAB: Create report */}
-      <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 16 }]}
-        onPress={() => navigation.navigate('Post')}
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
-
-      {/* Bottom sheet: Report detail */}
-      {selectedReport && (
-        <ReportDetailSheet
-          report={selectedReport}
-          onClose={() => setSelectedReport(null)}
-          onViewFull={() => {
-            navigation.navigate('ReportDetail', { id: selectedReport.id });
-            setSelectedReport(null);
-          }}
-        />
-      )}
     </View>
   );
 }
 
+function distanceLabel(report: Report, center: ReturnType<typeof useHomeView>['center']) {
+  const d = distanceMeters(report, center);
+  return d != null ? formatDistance(d) : undefined;
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  map: { ...StyleSheet.absoluteFillObject },
-  filterBar: {
+  container: { flex: 1, backgroundColor: colors.background },
+  viewport: { flex: 1, overflow: 'hidden' },
+  offline: { position: 'absolute', top: spacing.sm, left: spacing.lg, right: spacing.lg },
+  topControls: {
     position: 'absolute',
+    top: spacing.md,
+    right: layout.screenPaddingH,
+    gap: spacing.sm,
+  },
+  bottomDock: {
+    position: 'absolute',
+    left: layout.screenPaddingH,
+    right: layout.screenPaddingH,
+    bottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  preview: { ...shadows.md },
+  stepperRow: { flexDirection: 'row' },
+  stepper: { flex: 1, ...shadows.sm },
+  listToggleDock: {
+    position: 'absolute',
+    right: layout.screenPaddingH,
+    bottom: spacing.lg,
+  },
+  listToggleBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.controlLarge,
+    ...shadows.md,
+  },
+  loading: {
+    position: 'absolute',
+    top: 0,
     left: 0,
     right: 0,
-    zIndex: 10,
-  },
-  chips: { paddingHorizontal: 12, gap: 8 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1.5,
-  },
-  chipText: { fontSize: 12, fontWeight: '600' },
-  controls: {
-    position: 'absolute',
-    right: 16,
-    gap: 8,
-  },
-  controlBtn: {
-    width: 44,
-    height: 44,
-    backgroundColor: '#fff',
-    borderRadius: 22,
-    justifyContent: 'center',
+    bottom: 0,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  radiusPanel: {
-    position: 'absolute',
-    right: 68,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-    gap: 4,
-  },
-  radiusOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  radiusOptionActive: { backgroundColor: '#dcfce7' },
-  radiusText: { fontSize: 14, color: '#475569' },
-  radiusTextActive: { color: '#16a34a', fontWeight: '600' },
-  fab: {
-    position: 'absolute',
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#22c55e',
     justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
+    gap: spacing.sm,
   },
+  loadingText: {},
 });

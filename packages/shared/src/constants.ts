@@ -13,12 +13,14 @@ export const DEFAULT_RADIUS_METERS = 804;
 export const MAX_RADIUS_METERS = 3218;
 export const REPORT_ARCHIVE_HOURS = 48;
 
+// Colors are locked to the Townly design system. Every category pairs its
+// color with a distinct icon + label so meaning never rests on color alone.
 export const CATEGORY_META: Record<ReportCategory, { label: string; color: string; emoji: string }> = {
-  SAFETY:         { label: 'Safety',         color: '#ef4444', emoji: '🔴' },
-  INFRASTRUCTURE: { label: 'Infrastructure', color: '#f97316', emoji: '🟠' },
-  ANIMALS:        { label: 'Animals',        color: '#a855f7', emoji: '🐾' },
-  COMMUNITY:      { label: 'Community',      color: '#3b82f6', emoji: '📢' },
-  POSITIVE:       { label: 'Positive',       color: '#22c55e', emoji: '💚' },
+  SAFETY:         { label: 'Safety',         color: '#D95C4F', emoji: '⚠️' },
+  INFRASTRUCTURE: { label: 'Infrastructure', color: '#E79C43', emoji: '🛠️' },
+  ANIMALS:        { label: 'Animals',        color: '#8A6FD1', emoji: '🐾' },
+  COMMUNITY:      { label: 'Community',      color: '#5CA9D6', emoji: '📣' },
+  HELP:           { label: 'Help',           color: '#5FA82E', emoji: '🤝' },
 };
 
 export const CREDIBILITY_TIERS = [
