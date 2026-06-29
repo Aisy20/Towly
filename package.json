@@ -1,8 +1,14 @@
 {
   "name": "townly",
   "version": "1.0.0",
+  "private": true,
   "description": "Townly — Your neighborhood, live.",
   "main": "node_modules/expo/AppEntry.js",
+  "workspaces": [
+    "packages/shared",
+    "apps/backend",
+    "apps/mobile"
+  ],
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",

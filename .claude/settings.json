@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker exec:*)",
+      "Bash(openssl rand:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma:*)",
+      "Bash(curl -s http://localhost:3000/health)"
+    ]
+  }
+}

@@ -23,7 +23,7 @@ export const useMapStore = create<MapState>((set, get) => ({
     const current = get().activeCategories;
     if (current === null) {
       // Was "all" — now switch to just this one deselected
-      const all: ReportCategory[] = ['SAFETY', 'INFRASTRUCTURE', 'ANIMALS', 'COMMUNITY', 'POSITIVE'];
+      const all: ReportCategory[] = ['SAFETY', 'INFRASTRUCTURE', 'ANIMALS', 'COMMUNITY', 'HELP'];
       set({ activeCategories: all.filter((c) => c !== cat) });
     } else if (current.includes(cat)) {
       const next = current.filter((c) => c !== cat);
