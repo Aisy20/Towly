@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TownlyLogo } from '@/components/ui';
 
 export function WelcomeScreen() {
   const navigation = useNavigation<any>();
@@ -10,7 +11,7 @@ export function WelcomeScreen() {
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom + 24 }]}>
       <View style={styles.hero}>
-        <Text style={styles.icon}>🏘️</Text>
+        <TownlyLogo size={72} accessibilityLabel="Townly" />
         <Text style={styles.title}>Townly</Text>
         <Text style={styles.subtitle}>
           Real-time updates for your block.{'\n'}Know what's happening right outside.

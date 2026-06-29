@@ -7,7 +7,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { categoryColor, hitSlop, shadows } from '@/theme';
+import { categoryColor, hitSlop, shadows, palette } from '@/theme';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { CATEGORY_META, type ReportCategory } from '@townly/shared';
 import { Text } from './Text';
@@ -22,8 +22,11 @@ export interface MapPinProps {
   category: ReportCategory;
   live?: boolean;
   resolved?: boolean;
+  /** Raised + ringed + slightly enlarged when this pin is the active selection. */
+  selected?: boolean;
   size?: number;
   onPress?: () => void;
+  accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -31,8 +34,10 @@ export function MapPin({
   category,
   live = false,
   resolved = false,
+  selected = false,
   size = 36,
   onPress,
+  accessibilityLabel,
   style,
 }: MapPinProps) {
   const reduced = useReducedMotion();
@@ -63,10 +68,19 @@ export function MapPin({
   const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.4] });
   const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0] });
 
-  const label = `${meta.label} report${live ? ' (live)' : ''}`;
+  const label =
+    accessibilityLabel ??
+    `${meta.label} report${live ? ' (live)' : ''}${selected ? ', selected' : ''}`;
 
   const content = (
-    <View style={[styles.wrap, { width: size, height: size }, resolved ? styles.resolved : null]}>
+    <View
+      style={[
+        styles.wrap,
+        { width: size, height: size },
+        resolved ? styles.resolved : null,
+        selected ? styles.wrapSelected : null,
+      ]}
+    >
       {live ? (
         animated ? (
           <Animated.View
@@ -108,6 +122,7 @@ export function MapPin({
             borderRadius: size / 2,
             backgroundColor: color,
           },
+          selected ? styles.pinSelected : null,
         ]}
       >
         <Text
@@ -127,6 +142,7 @@ export function MapPin({
         hitSlop={hitSlop}
         accessibilityRole="button"
         accessibilityLabel={label}
+        accessibilityState={{ selected }}
         style={({ pressed }) => [styles.container, { opacity: pressed ? 0.85 : 1 }, style]}
       >
         {content}
@@ -157,6 +173,14 @@ const styles = StyleSheet.create({
   },
   resolved: {
     opacity: 0.5,
+  },
+  wrapSelected: {
+    transform: [{ scale: 1.18 }],
+  },
+  pinSelected: {
+    borderWidth: 3,
+    borderColor: palette.white,
+    ...shadows.md,
   },
   ring: {
     position: 'absolute',

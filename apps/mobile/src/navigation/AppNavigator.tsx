@@ -8,7 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, palette, fontFamily, radii, shadows, hitSlop } from '@/theme';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import type { RootStackParamList, TabsParamList } from './types';
-import { MapShell, PulseShell, AlertsShell, YouShell } from '../screens/signal/TabShells';
+import { PulseShell, AlertsShell, YouShell } from '../screens/signal/TabShells';
+import { MapScreen } from '../screens/map/MapScreen';
 import {
   ReportDetailShell,
   CreateReportShell,
@@ -69,7 +70,7 @@ function TabsNavigator() {
         ),
       })}
     >
-      <Tabs.Screen name="Map" component={MapShell} options={{ tabBarLabel: 'Map' }} />
+      <Tabs.Screen name="Map" component={MapScreen} options={{ tabBarLabel: 'Map' }} />
       <Tabs.Screen name="Pulse" component={PulseShell} options={{ tabBarLabel: 'Pulse' }} />
       <Tabs.Screen
         name="CreateTab"
