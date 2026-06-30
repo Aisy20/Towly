@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import MapView, { Circle, Marker, type Region } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
@@ -9,26 +9,20 @@ import {
   OfflineBanner,
   PermissionState,
   RadiusStepper,
-  ReportPreviewCard,
   Text,
+  Toast,
 } from '@/components/ui';
 import { colors, palette, spacing, layout, radii, shadows } from '@/theme';
 import { useMapStore } from '../../store/mapStore';
 import { useAuthStore } from '../../store/authStore';
-import { fuzzCoordinate, formatDistance } from '../../lib/geo';
+import { fuzzCoordinate } from '../../lib/geo';
 import { withAlpha } from '../../lib/color';
 import { HomeHeader } from '../home/HomeHeader';
 import { HomeChrome } from '../home/HomeChrome';
 import { NearbyList } from '../home/NearbyList';
+import { ReportDetailSheet } from '../home/ReportDetailSheet';
 import { useHomeView } from '../home/useHomeView';
-import {
-  isLive,
-  isConfirmed,
-  reportStatus,
-  pulseSummary,
-  lastUpdatedLabel,
-  distanceMeters,
-} from '../home/home.data';
+import { isLive, pulseSummary, lastUpdatedLabel } from '../home/home.data';
 import { townlyMapStyle } from '../home/mapStyle';
 
 const FALLBACK_REGION: Region = {
@@ -41,6 +35,7 @@ const FALLBACK_REGION: Region = {
 export function MapScreen() {
   const navigation = useNavigation<any>();
   const mapRef = useRef<MapView>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   const radiusMeters = useMapStore((s) => s.radiusMeters);
   const listMode = useMapStore((s) => s.listMode);
@@ -56,10 +51,13 @@ export function MapScreen() {
   const view = useHomeView();
   const { center, visible, pulse, selectedReport, isError, isWaitingForLocation } = view;
 
-  const openDetail = useCallback(
-    (report: Report) => navigation.navigate('ReportDetail', { reportId: report.id }),
-    [navigation],
-  );
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 2400);
+  }, []);
+
+  const openReport = useCallback((report: Report) => setSelectedReport(report.id), [setSelectedReport]);
+  const closeSheet = useCallback(() => setSelectedReport(null), [setSelectedReport]);
 
   const recenter = useCallback(() => {
     if (!center) return;
@@ -73,9 +71,6 @@ export function MapScreen() {
     ? { latitude: center.lat, longitude: center.lng, latitudeDelta: 0.02, longitudeDelta: 0.02 }
     : FALLBACK_REGION;
 
-  const updatedLabel = lastUpdatedLabel(view.windowReports);
-  const summary = pulseSummary(pulse);
-
   return (
     <View style={styles.container}>
       <HomeHeader
@@ -86,14 +81,14 @@ export function MapScreen() {
 
       <HomeChrome
         pulse={pulse}
-        summary={summary}
-        updatedLabel={updatedLabel}
+        summary={pulseSummary(pulse)}
+        updatedLabel={lastUpdatedLabel(view.windowReports)}
         onLocationPress={() => navigation.navigate('SearchList')}
       />
 
       <View style={styles.viewport}>
         {listMode ? (
-          <NearbyList reports={visible} center={center} onSelectReport={openDetail} />
+          <NearbyList reports={visible} center={center} onSelectReport={openReport} />
         ) : isWaitingForLocation ? (
           <PermissionState
             icon="location-outline"
@@ -113,7 +108,7 @@ export function MapScreen() {
               showsMyLocationButton={false}
               showsPointsOfInterest={false}
               toolbarEnabled={false}
-              onPress={() => setSelectedReport(null)}
+              onPress={closeSheet}
             >
               {center ? (
                 <Circle
@@ -136,11 +131,7 @@ export function MapScreen() {
                     onPress={() => setSelectedReport(report.id)}
                     tracksViewChanges={selected || isLive(report)}
                   >
-                    <MapPin
-                      category={report.category}
-                      live={isLive(report)}
-                      selected={selected}
-                    />
+                    <MapPin category={report.category} live={isLive(report)} selected={selected} />
                   </Marker>
                 );
               })}
@@ -148,40 +139,20 @@ export function MapScreen() {
 
             {isError ? <OfflineBanner style={styles.offline} /> : null}
 
-            {/* Map controls */}
             <View style={styles.topControls} pointerEvents="box-none">
-              <IconButton
-                icon={listMode ? 'map' : 'list'}
-                accessibilityLabel="Show nearby list"
-                onPress={() => setListMode(true)}
-              />
+              <IconButton icon="list" accessibilityLabel="Show nearby list" onPress={() => setListMode(true)} />
               <IconButton icon="locate" accessibilityLabel="Recenter map" onPress={recenter} />
             </View>
 
-            {/* Bottom: floating preview + radius stepper */}
             <View style={styles.bottomDock} pointerEvents="box-none">
-              {selectedReport ? (
-                <ReportPreviewCard
-                  category={selectedReport.category}
-                  title={selectedReport.title}
-                  distanceLabel={distanceLabel(selectedReport, center)}
-                  timeLabel={isLive(selectedReport) ? 'Just now' : undefined}
-                  confirmedCount={isConfirmed(selectedReport) ? selectedReport.upvotes : undefined}
-                  status={reportStatus(selectedReport)}
-                  onPress={() => openDetail(selectedReport)}
-                  style={styles.preview}
-                />
-              ) : null}
-              <View style={styles.stepperRow}>
-                <RadiusStepper
-                  valueLabel={`${(radiusMeters / 1000).toFixed(1)} km`}
-                  canDecrement={canStepRadius(-1)}
-                  canIncrement={canStepRadius(1)}
-                  onDecrement={() => stepRadius(-1)}
-                  onIncrement={() => stepRadius(1)}
-                  style={styles.stepper}
-                />
-              </View>
+              <RadiusStepper
+                valueLabel={`${(radiusMeters / 1000).toFixed(1)} km`}
+                canDecrement={canStepRadius(-1)}
+                canIncrement={canStepRadius(1)}
+                onDecrement={() => stepRadius(-1)}
+                onIncrement={() => stepRadius(1)}
+                style={styles.stepper}
+              />
             </View>
           </>
         )}
@@ -201,52 +172,44 @@ export function MapScreen() {
         {view.isLoading ? (
           <View style={styles.loading} pointerEvents="none">
             <ActivityIndicator color={colors.brand} />
-            <Text variant="bodyMuted" style={styles.loadingText}>
-              Loading nearby reports…
-            </Text>
+            <Text variant="bodyMuted">Loading nearby reports…</Text>
           </View>
         ) : null}
+
+        {/* Report-detail sheet slides up over the map (or list) */}
+        <ReportDetailSheet
+          report={selectedReport}
+          center={center}
+          onClose={closeSheet}
+          onOpenEvidence={() =>
+            selectedReport && navigation.navigate('Evidence', { reportId: selectedReport.id })
+          }
+          onOpenHelp={() =>
+            selectedReport && navigation.navigate('HelpThread', { reportId: selectedReport.id })
+          }
+          onToast={showToast}
+        />
       </View>
+
+      <Toast visible={!!toast} message={toast ?? ''} />
     </View>
   );
-}
-
-function distanceLabel(report: Report, center: ReturnType<typeof useHomeView>['center']) {
-  const d = distanceMeters(report, center);
-  return d != null ? formatDistance(d) : undefined;
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   viewport: { flex: 1, overflow: 'hidden' },
   offline: { position: 'absolute', top: spacing.sm, left: spacing.lg, right: spacing.lg },
-  topControls: {
-    position: 'absolute',
-    top: spacing.md,
-    right: layout.screenPaddingH,
-    gap: spacing.sm,
-  },
+  topControls: { position: 'absolute', top: spacing.md, right: layout.screenPaddingH, gap: spacing.sm },
   bottomDock: {
     position: 'absolute',
     left: layout.screenPaddingH,
     right: layout.screenPaddingH,
     bottom: spacing.lg,
-    gap: spacing.sm,
   },
-  preview: { ...shadows.md },
-  stepperRow: { flexDirection: 'row' },
-  stepper: { flex: 1, ...shadows.sm },
-  listToggleDock: {
-    position: 'absolute',
-    right: layout.screenPaddingH,
-    bottom: spacing.lg,
-  },
-  listToggleBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: radii.controlLarge,
-    ...shadows.md,
-  },
+  stepper: { ...shadows.sm },
+  listToggleDock: { position: 'absolute', right: layout.screenPaddingH, bottom: spacing.lg },
+  listToggleBtn: { width: 52, height: 52, borderRadius: radii.controlLarge, ...shadows.md },
   loading: {
     position: 'absolute',
     top: 0,
@@ -257,5 +220,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
   },
-  loadingText: {},
 });

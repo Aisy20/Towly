@@ -20,6 +20,10 @@ export interface ConfirmationButtonProps {
   confirmed: boolean;
   onPress: () => void;
   count?: number;
+  /** Override the default "Confirm" verb (e.g. "Seen here", "Helpful"). */
+  label?: string;
+  /** Override the default confirmed-state verb (e.g. "Seen", "Marked helpful"). */
+  confirmedLabel?: string;
   loading?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -29,13 +33,17 @@ export function ConfirmationButton({
   confirmed,
   onPress,
   count,
+  label: labelProp,
+  confirmedLabel,
   loading = false,
   disabled = false,
   style,
 }: ConfirmationButtonProps) {
   const isDisabled = disabled || loading;
   const fg = confirmed ? colors.onBrand : colors.brand;
-  const baseLabel = confirmed ? 'Confirmed' : 'Confirm';
+  const baseLabel = confirmed
+    ? confirmedLabel ?? labelProp ?? 'Confirmed'
+    : labelProp ?? 'Confirm';
   const label = count != null ? `${baseLabel} · ${count}` : baseLabel;
 
   return (
@@ -43,7 +51,7 @@ export function ConfirmationButton({
       onPress={onPress}
       disabled={isDisabled}
       accessibilityRole="button"
-      accessibilityLabel={confirmed ? 'Confirmed' : 'Confirm report'}
+      accessibilityLabel={baseLabel}
       accessibilityState={{ selected: confirmed, busy: loading, disabled: isDisabled }}
       style={({ pressed }) => [
         styles.base,

@@ -2,44 +2,45 @@
  * Web Home screen. react-native-maps is native-only, so on web the accessible
  * nearby-report list is the primary view. It reads the same normalized report
  * store as the native map, so filters / radius / real-time updates behave
- * identically — the list IS the screen-reader equivalent of the map.
+ * identically — the list IS the screen-reader equivalent of the map. Tapping a
+ * row opens the same report-detail sheet (a slide-up modal on web).
  */
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { Report } from '@townly/shared';
-import {
-  OfflineBanner,
-  PermissionState,
-  RadiusStepper,
-  Text,
-} from '@/components/ui';
+import { OfflineBanner, PermissionState, RadiusStepper, Text, Toast } from '@/components/ui';
 import { colors, palette, spacing, layout, radii } from '@/theme';
 import { useMapStore } from '../../store/mapStore';
 import { useAuthStore } from '../../store/authStore';
 import { HomeHeader } from '../home/HomeHeader';
 import { HomeChrome } from '../home/HomeChrome';
 import { NearbyList } from '../home/NearbyList';
+import { ReportDetailSheet } from '../home/ReportDetailSheet';
 import { useHomeView } from '../home/useHomeView';
 import { pulseSummary, lastUpdatedLabel } from '../home/home.data';
 
 export function MapScreen() {
   const navigation = useNavigation<any>();
+  const [toast, setToast] = useState<string | null>(null);
   const radiusMeters = useMapStore((s) => s.radiusMeters);
   const stepRadius = useMapStore((s) => s.stepRadius);
   const canStepRadius = useMapStore((s) => s.canStepRadius);
+  const setSelectedReport = useMapStore((s) => s.setSelectedReport);
 
   const user = useAuthStore((s) => s.user);
   const initial = (user?.username?.[0] ?? 'Y').toUpperCase();
 
   const view = useHomeView();
-  const { center, visible, pulse, isError, isWaitingForLocation } = view;
+  const { center, visible, pulse, selectedReport, isError, isWaitingForLocation } = view;
 
-  const openDetail = useCallback(
-    (report: Report) => navigation.navigate('ReportDetail', { reportId: report.id }),
-    [navigation],
-  );
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 2400);
+  }, []);
+  const openReport = useCallback((report: Report) => setSelectedReport(report.id), [setSelectedReport]);
+  const closeSheet = useCallback(() => setSelectedReport(null), [setSelectedReport]);
 
   const header = (
     <View>
@@ -83,11 +84,26 @@ export function MapScreen() {
           title="Location is off"
           message="Townly uses your location to show what's happening nearby. Your exact position is never shown to others."
           actionLabel="Enable location"
-          onAction={() => view && undefined}
+          onAction={() => undefined}
         />
       ) : (
-        <NearbyList reports={visible} center={center} onSelectReport={openDetail} header={header} />
+        <NearbyList reports={visible} center={center} onSelectReport={openReport} header={header} />
       )}
+
+      <ReportDetailSheet
+        report={selectedReport}
+        center={center}
+        onClose={closeSheet}
+        onOpenEvidence={() =>
+          selectedReport && navigation.navigate('Evidence', { reportId: selectedReport.id })
+        }
+        onOpenHelp={() =>
+          selectedReport && navigation.navigate('HelpThread', { reportId: selectedReport.id })
+        }
+        onToast={showToast}
+      />
+
+      <Toast visible={!!toast} message={toast ?? ''} />
     </View>
   );
 }
@@ -106,8 +122,5 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
   },
   mapNoteText: { flex: 1, color: colors.textPrimary },
-  stepperWrap: {
-    marginHorizontal: layout.screenPaddingH,
-    marginTop: spacing.md,
-  },
+  stepperWrap: { marginHorizontal: layout.screenPaddingH, marginTop: spacing.md },
 });
