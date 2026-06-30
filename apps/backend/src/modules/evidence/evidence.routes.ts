@@ -2,7 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../../config/database';
 import { redis, REDIS_CHANNELS } from '../../config/redis';
 import { uploadReportPhoto } from '../../lib/cloudinary';
-import cuid from '@paralleldrive/cuid2';
+import { notifyUser } from '../notifications/notifications.service';
+import { createId } from '@paralleldrive/cuid2';
 
 export async function evidenceRoutes(app: FastifyInstance) {
   // POST /reports/:reportId/evidence — add corroborating photo (multipart)
@@ -37,7 +38,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: 'Photo is required for evidence' });
       }
 
-      const evidenceId = cuid.createId();
+      const evidenceId = createId();
       const photoUrl = await uploadReportPhoto(photoBuffer, `evidence-${evidenceId}`);
 
       const evidence = await prisma.evidence.create({
@@ -58,17 +59,15 @@ export async function evidenceRoutes(app: FastifyInstance) {
       // Broadcast via Redis
       await redis.publish(REDIS_CHANNELS.EVIDENCE_ADDED, JSON.stringify(evidence));
 
-      // Notify report author (if not self)
+      // Notify report author (if not self) — persists a row and pushes.
       if (report.authorId !== userId) {
         const contributor = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } });
-        await prisma.notification.create({
-          data: {
-            userId: report.authorId,
-            reportId,
-            type: 'NEW_NEARBY_REPORT', // reuse existing type for now
-            title: 'New corroborating evidence',
-            body: `@${contributor?.username ?? 'Someone'} added a photo to your report "${report.title.slice(0, 40)}"`,
-          },
+        await notifyUser({
+          userId: report.authorId,
+          reportId,
+          type: 'EVIDENCE_ADDED',
+          title: 'New corroborating evidence',
+          body: `@${contributor?.username ?? 'Someone'} added a photo to your report "${report.title.slice(0, 40)}"`,
         });
       }
 

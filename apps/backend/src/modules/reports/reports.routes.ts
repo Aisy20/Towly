@@ -2,10 +2,12 @@ import { FastifyInstance } from 'fastify';
 import { MultipartFile } from '@fastify/multipart';
 import { ReportCategory } from '@townly/shared';
 import { getReportsNearby } from './reports.geo';
+import { reportInclude, toReportDTO } from './reports.serializer';
+import { fanOutNewReport } from '../notifications/notifications.service';
 import { uploadReportPhoto } from '../../lib/cloudinary';
 import { redis, REDIS_CHANNELS } from '../../config/redis';
 import { getReportsSchema } from './reports.schema';
-import cuid from '@paralleldrive/cuid2';
+import { createId } from '@paralleldrive/cuid2';
 
 export async function reportRoutes(app: FastifyInstance) {
   // GET /reports — geospatial feed
@@ -67,7 +69,7 @@ export async function reportRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Missing required fields' });
     }
 
-    const reportId = cuid.createId();
+    const reportId = createId();
     let photoUrl: string | undefined;
     if (photoBuffer) {
       photoUrl = await uploadReportPhoto(photoBuffer, reportId);
@@ -84,21 +86,21 @@ export async function reportRoutes(app: FastifyInstance) {
         latitude: parseFloat(lat),
         longitude: parseFloat(lng),
       },
-      include: {
-        author: { select: { id: true, username: true, avatarUrl: true, credibilityScore: true } },
-        _count: { select: { helpOffers: true, evidence: true } },
-      },
+      include: reportInclude(userId),
     });
 
-    // Broadcast to WebSocket subscribers via Redis pub/sub
-    await redis.publish(REDIS_CHANNELS.REPORTS_NEW, JSON.stringify({
-      ...report,
-      helpOffersCount: report._count.helpOffers,
-      evidenceCount: report._count.evidence,
-      _count: undefined,
-    }));
+    const dto = toReportDTO(report);
 
-    return reply.status(201).send(report);
+    // Broadcast the same DTO to WebSocket subscribers via Redis pub/sub.
+    await redis.publish(REDIS_CHANNELS.REPORTS_NEW, JSON.stringify(dto));
+
+    // Fan out to nearby neighbors (notification rows + push). Fire-and-forget so
+    // a slow push round-trip never delays the author's create response.
+    void fanOutNewReport(report).catch((err) =>
+      app.log.error({ err }, 'new-report fan-out failed'),
+    );
+
+    return reply.status(201).send(dto);
   });
 
   // GET /reports/mine
@@ -106,13 +108,11 @@ export async function reportRoutes(app: FastifyInstance) {
     const userId = (request.user as { sub: string }).sub;
     const reports = await app.prisma.report.findMany({
       where: { authorId: userId },
-      include: {
-        _count: { select: { votes: true, helpOffers: true } },
-      },
+      include: reportInclude(userId),
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
-    return reply.send(reports);
+    return reply.send(reports.map((r) => toReportDTO(r)));
   });
 
   // GET /reports/:id
@@ -127,23 +127,12 @@ export async function reportRoutes(app: FastifyInstance) {
 
     const report = await app.prisma.report.findUnique({
       where: { id },
-      include: {
-        author: { select: { id: true, username: true, avatarUrl: true, credibilityScore: true } },
-        votes: requestingUserId ? { where: { userId: requestingUserId } } : false,
-        _count: { select: { helpOffers: true, evidence: true } },
-      },
+      include: reportInclude(requestingUserId),
     });
 
     if (!report) return reply.status(404).send({ error: 'Report not found' });
 
-    return reply.send({
-      ...report,
-      userVote: requestingUserId && report.votes?.length ? report.votes[0].value : null,
-      helpOffersCount: report._count.helpOffers,
-      evidenceCount: report._count.evidence,
-      votes: undefined,
-      _count: undefined,
-    });
+    return reply.send(toReportDTO(report));
   });
 
   // DELETE /reports/:id

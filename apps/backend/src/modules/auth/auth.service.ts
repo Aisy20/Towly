@@ -8,11 +8,51 @@ const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL_DAYS = 30;
 const REFRESH_TOKEN_TTL_MS = REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000;
 
+/** Fields safe to return to the client — never the password hash. */
+export const PUBLIC_USER_SELECT = {
+  id: true,
+  username: true,
+  email: true,
+  avatarUrl: true,
+  credibilityScore: true,
+  totalReports: true,
+  accurateReports: true,
+  notifyRadius: true,
+  createdAt: true,
+} as const;
+
+interface PublicUserRow {
+  id: string;
+  username: string;
+  email: string;
+  avatarUrl: string | null;
+  credibilityScore: number;
+  totalReports: number;
+  accurateReports: number;
+  notifyRadius: number;
+  createdAt: Date | string;
+}
+
+/** Maps a user row to the `@townly/shared` User shape (plus email/notifyRadius). */
+export function toPublicUser(u: PublicUserRow) {
+  return {
+    id: u.id,
+    username: u.username,
+    email: u.email,
+    avatarUrl: u.avatarUrl ?? null,
+    credibilityScore: u.credibilityScore,
+    totalReports: u.totalReports,
+    accurateReports: u.accurateReports,
+    notifyRadius: u.notifyRadius,
+    createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : u.createdAt,
+  };
+}
+
 export async function createUser(username: string, email: string, password: string) {
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   return prisma.user.create({
     data: { username, email, passwordHash },
-    select: { id: true, username: true, email: true, credibilityScore: true, createdAt: true },
+    select: PUBLIC_USER_SELECT,
   });
 }
 
@@ -48,6 +88,11 @@ export async function revokeRefreshToken(token: string): Promise<void> {
 
 export async function savePushToken(userId: string, expoPushToken: string): Promise<void> {
   await prisma.user.update({ where: { id: userId }, data: { expoPushToken } });
+}
+
+/** Persist the user's coarse location, used for "new nearby report" fan-out. */
+export async function saveLocation(userId: string, latitude: number, longitude: number): Promise<void> {
+  await prisma.user.update({ where: { id: userId }, data: { latitude, longitude } });
 }
 
 export { ACCESS_TOKEN_TTL };

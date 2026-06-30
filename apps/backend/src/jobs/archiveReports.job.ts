@@ -12,16 +12,26 @@ export function startArchiveJob(): void {
   cron.schedule('*/15 * * * *', async () => {
     const cutoff = new Date(Date.now() - ARCHIVE_AFTER_MS);
 
-    const result = await prisma.report.updateMany({
+    // Collect ids first so we can notify clients per-report (the client drops a
+    // specific pin by reportId — a bare count can't tell it which).
+    const stale = await prisma.report.findMany({
       where: { status: 'ACTIVE', createdAt: { lt: cutoff } },
+      select: { id: true },
+    });
+    if (stale.length === 0) return;
+
+    await prisma.report.updateMany({
+      where: { id: { in: stale.map((r) => r.id) } },
       data: { status: 'ARCHIVED', archivedAt: new Date() },
     });
+    console.log(`[archive] Archived ${stale.length} report(s)`);
 
-    if (result.count > 0) {
-      console.log(`[archive] Archived ${result.count} report(s)`);
-      // Notify connected clients to remove archived pins
-      await redis.publish(REDIS_CHANNELS.REPORTS_ARCHIVED, JSON.stringify({ count: result.count }));
-    }
+    // Notify connected clients to remove each archived pin.
+    await Promise.all(
+      stale.map((r) =>
+        redis.publish(REDIS_CHANNELS.REPORTS_ARCHIVED, JSON.stringify({ reportId: r.id })),
+      ),
+    );
   });
 
   console.log('[archive] Cron job scheduled (every 15 min)');

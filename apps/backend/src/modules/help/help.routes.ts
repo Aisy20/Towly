@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../../config/database';
 import { redis, REDIS_CHANNELS } from '../../config/redis';
+import { notifyUser } from '../notifications/notifications.service';
 
 export async function helpRoutes(app: FastifyInstance) {
   // POST /reports/:reportId/help — offer help (thread message)
@@ -38,17 +39,15 @@ export async function helpRoutes(app: FastifyInstance) {
       // Broadcast via Redis
       await redis.publish(REDIS_CHANNELS.HELP_OFFERED, JSON.stringify(helpOffer));
 
-      // Notify report author (if not self)
+      // Notify report author (if not self) — persists a row and pushes.
       if (report.authorId !== userId) {
         const helper = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } });
-        await prisma.notification.create({
-          data: {
-            userId: report.authorId,
-            reportId,
-            type: 'HELP_OFFERED',
-            title: 'Someone offered to help',
-            body: `@${helper?.username ?? 'Someone'}: "${message.trim().slice(0, 80)}"`,
-          },
+        await notifyUser({
+          userId: report.authorId,
+          reportId,
+          type: 'HELP_OFFERED',
+          title: 'Someone offered to help',
+          body: `@${helper?.username ?? 'Someone'}: "${message.trim().slice(0, 80)}"`,
         });
       }
 

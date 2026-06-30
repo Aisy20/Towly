@@ -21,7 +21,7 @@ export async function authRoutes(app: FastifyInstance) {
     const accessToken = app.jwt.sign({ sub: user.id }, { expiresIn: authService.ACCESS_TOKEN_TTL });
     const refreshToken = await authService.createRefreshToken(user.id);
 
-    return reply.status(201).send({ user, accessToken, refreshToken });
+    return reply.status(201).send({ user: authService.toPublicUser(user), accessToken, refreshToken });
   });
 
   app.post('/login', { schema: loginSchema }, async (request, reply) => {
@@ -36,13 +36,7 @@ export async function authRoutes(app: FastifyInstance) {
     const refreshToken = await authService.createRefreshToken(user.id);
 
     return reply.send({
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        credibilityScore: user.credibilityScore,
-        notifyRadius: user.notifyRadius,
-      },
+      user: authService.toPublicUser(user),
       accessToken,
       refreshToken,
     });
@@ -80,4 +74,27 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(204).send();
     },
   );
+
+  app.post(
+    '/location',
+    { schema: locationSchema, preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const userId = (request.user as { sub: string }).sub;
+      const { latitude, longitude } = request.body as { latitude: number; longitude: number };
+      await authService.saveLocation(userId, latitude, longitude);
+      return reply.status(204).send();
+    },
+  );
 }
+
+const locationSchema = {
+  body: {
+    type: 'object',
+    required: ['latitude', 'longitude'],
+    additionalProperties: false,
+    properties: {
+      latitude: { type: 'number', minimum: -90, maximum: 90 },
+      longitude: { type: 'number', minimum: -180, maximum: 180 },
+    },
+  },
+} as const;

@@ -20,6 +20,8 @@ model User {
   accurateReports  Int      @default(0)
   expoPushToken    String?
   notifyRadius     Float    @default(804.67)
+  latitude         Float?
+  longitude        Float?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -145,5 +147,6 @@ enum NotificationType {
   NEW_NEARBY_REPORT
   VOTE_ON_MY_REPORT
   HELP_OFFERED
+  EVIDENCE_ADDED
   REPORT_ARCHIVED
 }

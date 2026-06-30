@@ -13,6 +13,7 @@ import { reportRoutes } from './modules/reports/reports.routes';
 import { votesRoutes } from './modules/votes/votes.routes';
 import { helpRoutes } from './modules/help/help.routes';
 import { evidenceRoutes } from './modules/evidence/evidence.routes';
+import { notificationRoutes } from './modules/notifications/notifications.routes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -32,6 +33,7 @@ export async function buildApp() {
   // Routes
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(reportRoutes, { prefix: '/api/v1/reports' });
+  await app.register(notificationRoutes, { prefix: '/api/v1/notifications' });
   await app.register(fastifyPlugin(async (instance) => {
     instance.register(votesRoutes, { prefix: '/api/v1/reports' });
     instance.register(helpRoutes, { prefix: '/api/v1/reports' });

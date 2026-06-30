@@ -1,6 +1,16 @@
 import { prisma } from '../../config/database';
-import { ReportCategory, ReportStatus } from '@townly/shared';
+import { ReportCategory } from '@townly/shared';
 import { MAX_RADIUS_METERS } from '@townly/shared';
+import { reportInclude, toReportDTO } from './reports.serializer';
+
+/** The only legal category literals — used to whitelist before interpolation. */
+const ALLOWED_CATEGORIES: ReadonlySet<ReportCategory> = new Set([
+  'SAFETY',
+  'INFRASTRUCTURE',
+  'ANIMALS',
+  'COMMUNITY',
+  'HELP',
+]);
 
 export interface GetReportsNearbyParams {
   lat: number;
@@ -29,18 +39,29 @@ export async function getReportsNearby(params: GetReportsNearbyParams) {
 
   const safeRadius = Math.min(Math.max(radiusMeters, 1), MAX_RADIUS_METERS);
 
-  // Raw SQL for the geospatial query — Prisma ORM cannot express ST_DWithin
+  // Raw SQL for the geospatial query — Prisma ORM cannot express ST_DWithin.
+  // SAFETY: positional params ($1..$n) carry all user values. The only
+  // interpolated fragment is the category list, and it is whitelisted to the
+  // fixed enum literals below, so it cannot carry injected SQL.
+  const safeCategories = (categories ?? []).filter((c) => ALLOWED_CATEGORIES.has(c));
   const categoryFilter =
-    categories && categories.length > 0
-      ? `AND category = ANY(ARRAY[${categories.map((c) => `'${c}'`).join(',')}]::\"ReportCategory\"[])`
+    safeCategories.length > 0
+      ? `AND r.category = ANY(ARRAY[${safeCategories.map((c) => `'${c}'`).join(',')}]::"ReportCategory"[])`
       : '';
 
-  const cursorFilter = cursor ? `AND r."createdAt" < (SELECT "createdAt" FROM "Report" WHERE id = '${cursor}')` : '';
+  const args: unknown[] = [lng, lat, safeRadius];
+  let nextParam = 4;
+  let cursorFilter = '';
+  if (cursor) {
+    cursorFilter = `AND r."createdAt" < (SELECT "createdAt" FROM "Report" WHERE id = $${nextParam})`;
+    args.push(cursor);
+    nextParam++;
+  }
+  const limitParam = `$${nextParam}`;
+  args.push(limit + 1);
 
-  const rows: Array<{
-    id: string;
-    distance_m: number;
-  }> = await prisma.$queryRawUnsafe(`
+  const rows: Array<{ id: string; distance_m: number }> = await prisma.$queryRawUnsafe(
+    `
     SELECT r.id,
       ST_Distance(
         ST_SetSRID(ST_MakePoint(r.longitude, r.latitude), 4326)::geography,
@@ -57,8 +78,10 @@ export async function getReportsNearby(params: GetReportsNearbyParams) {
       ${categoryFilter}
       ${cursorFilter}
     ORDER BY r."createdAt" DESC
-    LIMIT $4
-  `, lng, lat, safeRadius, limit + 1);
+    LIMIT ${limitParam}
+  `,
+    ...args,
+  );
 
   const hasMore = rows.length > limit;
   const ids = rows.slice(0, limit).map((r) => r.id);
@@ -66,25 +89,11 @@ export async function getReportsNearby(params: GetReportsNearbyParams) {
 
   const reports = await prisma.report.findMany({
     where: { id: { in: ids } },
-    include: {
-      author: { select: { id: true, username: true, avatarUrl: true, credibilityScore: true } },
-      votes: requestingUserId
-        ? { where: { userId: requestingUserId }, select: { value: true } }
-        : false,
-      _count: { select: { helpOffers: true, evidence: true } },
-    },
+    include: reportInclude(requestingUserId),
     orderBy: { createdAt: 'desc' },
   });
 
-  const enriched = reports.map((r) => ({
-    ...r,
-    distanceMeters: distanceMap.get(r.id) ?? 0,
-    userVote: requestingUserId && r.votes?.length ? r.votes[0].value : null,
-    helpOffersCount: r._count.helpOffers,
-    evidenceCount: r._count.evidence,
-    votes: undefined,
-    _count: undefined,
-  }));
+  const enriched = reports.map((r) => toReportDTO(r, distanceMap.get(r.id) ?? 0));
 
   return {
     reports: enriched,
@@ -93,23 +102,25 @@ export async function getReportsNearby(params: GetReportsNearbyParams) {
 }
 
 /**
- * Finds all users whose notifyRadius covers a given point,
- * excluding the report author. Used for push notification fan-out.
+ * Finds users whose shared location is within their own notifyRadius of a given
+ * report point, excluding the author. Used for "new nearby report" push fan-out.
+ * Users who haven't shared a location (latitude/longitude null) are skipped.
  */
 export async function getUsersNearPoint(
   lat: number,
   lng: number,
   excludeUserId: string,
 ): Promise<Array<{ id: string; expoPushToken: string | null }>> {
-  // Join user notifyRadius against the report location
   return prisma.$queryRawUnsafe<Array<{ id: string; expoPushToken: string | null }>>(
     `
     SELECT u.id, u."expoPushToken"
     FROM "User" u
     WHERE u.id != $3
       AND u."expoPushToken" IS NOT NULL
+      AND u.latitude IS NOT NULL
+      AND u.longitude IS NOT NULL
       AND ST_DWithin(
-        ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
+        ST_SetSRID(ST_MakePoint(u.longitude, u.latitude), 4326)::geography,
         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
         u."notifyRadius"
       )

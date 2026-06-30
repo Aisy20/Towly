@@ -1,6 +1,8 @@
 import { prisma } from '../../config/database';
 import { redis, REDIS_CHANNELS } from '../../config/redis';
+import { ACCURATE_REPORT_NET_SCORE_THRESHOLD } from '@townly/shared';
 import { recalculateCredibility } from '../../lib/credibility';
+import { notifyUser } from '../notifications/notifications.service';
 
 export async function castVote(
   reportId: string,
@@ -36,6 +38,18 @@ export async function castVote(
     REDIS_CHANNELS.REPORTS_VOTED,
     JSON.stringify({ reportId, netScore, upvotes, downvotes }),
   );
+
+  // Notify the author the first time their report crosses the "confirmed"
+  // threshold — a single meaningful moment rather than one ping per vote.
+  if (report.netScore < ACCURATE_REPORT_NET_SCORE_THRESHOLD && netScore >= ACCURATE_REPORT_NET_SCORE_THRESHOLD) {
+    notifyUser({
+      userId: updated.authorId,
+      reportId,
+      type: 'VOTE_ON_MY_REPORT',
+      title: 'Your report was confirmed',
+      body: `Neighbors confirmed "${report.title.slice(0, 60)}"`,
+    }).catch(console.error);
+  }
 
   // Recalculate report author's credibility score asynchronously
   recalculateCredibility(updated.authorId).catch(console.error);
